@@ -115,4 +115,9 @@ uploadRouter.openapi(presignRoute.route, presignRoute.handler);
 const serveRouter = new Hono<AppContext>();
 serveRouter.get("/:key{.+}", h.serveImage);
 
-export { serveRouter };
+// Direct client-side binary upload route — mounted outside /api/*
+// Plain Hono with regex param to accept PUT to /images-upload/:key{.+}.
+const directUploadRouter = new Hono<AppContext>();
+directUploadRouter.put("/:key{.+}", h.directPutImage);
+
+export { serveRouter, directUploadRouter };
