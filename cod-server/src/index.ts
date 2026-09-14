@@ -27,7 +27,7 @@ import productGroupsRoutes from "@/endpoints/product-groups/routes";
 import landingPagesRoutes from "@/endpoints/landing-pages/routes";
 import shippingProfilesRoutes from "@/endpoints/shipping-profiles/routes";
 import driverPaymentsRoutes from "@/endpoints/driver-payments/routes";
-import { uploadRouter, serveRouter } from "@/endpoints/images/routes";
+import { uploadRouter, serveRouter, directUploadRouter } from "@/endpoints/images/routes";
 import activityLogsRoutes from "@/endpoints/activity-logs/routes";
 import storesRoutes from "@/endpoints/stores/routes";
 import reviewsRoutes from "@/endpoints/reviews/routes";
@@ -69,6 +69,7 @@ app.onError(errorHandler);
 
 // Image serving — no auth required (public, cacheable)
 app.route("/images", serveRouter);
+app.route("/images-upload", directUploadRouter);
 
 // OpenAPI documentation — no auth required (public)
 // Must be mounted BEFORE app.use("/api/*", authMiddleware)
