@@ -159,6 +159,68 @@ export async function serveImage(c: Context<AppContext>) {
 }
 
 /**
+ * PUT /images-upload/:key{.+}
+ * Direct client-side image upload straight to R2.
+ * Used as a zero-config native Worker fallback when S3 HMAC keys are not present.
+ */
+export async function directPutImage(c: Context<AppContext>) {
+  const bucket = c.env.IMAGES;
+  const key = c.req.param("key");
+
+  if (!key) {
+    throw new ValidationError(
+      "Missing key",
+      ERROR_CODES.REQUIRED_FIELD_MISSING,
+      { field: "key" }
+    );
+  }
+
+  // Prevent path traversal and enforce allowed prefixes
+  if (
+    key.includes("..") ||
+    key.startsWith("/") ||
+    (!key.startsWith("products/") && !key.startsWith("landing/"))
+  ) {
+    throw new ValidationError(
+      "Invalid key path",
+      ERROR_CODES.VALIDATION_FAILED,
+      { key }
+    );
+  }
+
+  const contentType = c.req.header("content-type") || "image/jpeg";
+  const body = await c.req.arrayBuffer();
+
+  if (body.byteLength > MAX_SIZE_BYTES) {
+    throw new ValidationError(
+      "File too large. Max 10 MB",
+      ERROR_CODES.FILE_TOO_LARGE,
+      { fileSize: body.byteLength, maxSize: MAX_SIZE_BYTES }
+    );
+  }
+
+  try {
+    await bucket.put(key, body, {
+      httpMetadata: {
+        contentType,
+        cacheControl: "public, max-age=31536000, immutable",
+      },
+      customMetadata: {
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+
+    return new Response(null, { status: 200 });
+  } catch (error) {
+    throw new SystemError(
+      "Failed to upload image to storage",
+      ERROR_CODES.INTERNAL_SERVER_ERROR,
+      { key, error: error instanceof Error ? error.message : String(error) }
+    );
+  }
+}
+
+/**
  * GET /api/products/:id/images
  * Returns all images for a product ordered by position.
  */

@@ -38,6 +38,8 @@ export interface Env {
    * deployments without a custom domain yet.
    */
   STOREFRONT_URL?: string;
+  /** Optional flag to enable direct upload fallback to IMAGES binding */
+  ENABLE_DIRECT_UPLOAD?: string;
 
   // ─── MCP remote server (added MCP-8) ───────────────────────────────────────
   /**

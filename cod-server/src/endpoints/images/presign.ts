@@ -72,47 +72,58 @@ export async function presignUpload(c: Context<AppContext>) {
 
   const { CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, MEDIA_DOMAIN } = c.env;
 
-  if (!CF_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-    throw new SystemError(
-      "R2 credentials not configured. Set CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY secrets.",
-      ERROR_CODES.INTERNAL_SERVER_ERROR,
-      { missingCredentials: [
-        !CF_ACCOUNT_ID && "CF_ACCOUNT_ID",
-        !R2_ACCESS_KEY_ID && "R2_ACCESS_KEY_ID",
-        !R2_SECRET_ACCESS_KEY && "R2_SECRET_ACCESS_KEY"
-      ].filter(Boolean) }
-    );
+  const publicDomain = MEDIA_DOMAIN && MEDIA_DOMAIN !== "media.example.com"
+    ? MEDIA_DOMAIN
+    : "pub-35dd8d78d83b4f72b790544e8214ed13.r2.dev";
+  const publicUrl = `https://${publicDomain}/${key}`;
+
+  // If S3 credentials are configured, generate AWS S3 presigned URL (upstream standard)
+  if (CF_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY) {
+    const s3 = new S3Client({
+      region: "auto",
+      endpoint: `https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+      // R2 rejects the SDK's default flexible-checksum headers on presigned PUTs.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
+    });
+
+    const command = new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+      ContentType: contentType,
+      CacheControl: "public, max-age=31536000, immutable",
+    });
+
+    try {
+      const presignedUrl = await getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRY_SECONDS });
+      return c.json({ success: true, data: { presignedUrl, key, publicUrl } }, 200);
+    } catch (error) {
+      throw new SystemError(
+        "Failed to generate presigned URL",
+        ERROR_CODES.INTERNAL_SERVER_ERROR,
+        { key, error: error instanceof Error ? error.message : String(error) }
+      );
+    }
   }
 
-  const s3 = new S3Client({
-    region: "auto",
-    endpoint: `https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-    },
-    // R2 rejects the SDK's default flexible-checksum headers on presigned PUTs.
-    requestChecksumCalculation: "WHEN_REQUIRED",
-    responseChecksumValidation: "WHEN_REQUIRED",
-  });
-
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET_NAME,
-    Key: key,
-    ContentType: contentType,
-    CacheControl: "public, max-age=31536000, immutable",
-  });
-
-  try {
-    const presignedUrl = await getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRY_SECONDS });
-    const publicUrl = `https://${MEDIA_DOMAIN}/${key}`;
-
+  // Graceful native fallback for environments using Cloudflare API Token & native IMAGES binding
+  if (c.env.ENVIRONMENT === "production" || c.env.ENABLE_DIRECT_UPLOAD === "true") {
+    const origin = new URL(c.req.url).origin;
+    const presignedUrl = `${origin}/images-upload/${key}`;
     return c.json({ success: true, data: { presignedUrl, key, publicUrl } }, 200);
-  } catch (error) {
-    throw new SystemError(
-      "Failed to generate presigned URL",
-      ERROR_CODES.INTERNAL_SERVER_ERROR,
-      { key, error: error instanceof Error ? error.message : String(error) }
-    );
   }
+
+  throw new SystemError(
+    "R2 credentials not configured. Set CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY secrets.",
+    ERROR_CODES.INTERNAL_SERVER_ERROR,
+    { missingCredentials: [
+      !CF_ACCOUNT_ID && "CF_ACCOUNT_ID",
+      !R2_ACCESS_KEY_ID && "R2_ACCESS_KEY_ID",
+      !R2_SECRET_ACCESS_KEY && "R2_SECRET_ACCESS_KEY"
+    ].filter(Boolean) }
+  );
 }

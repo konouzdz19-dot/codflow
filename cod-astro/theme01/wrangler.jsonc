@@ -19,5 +19,8 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "services": [
+    { "binding": "COD_SERVER", "service": "codflow-server" }
+  ]
 }
