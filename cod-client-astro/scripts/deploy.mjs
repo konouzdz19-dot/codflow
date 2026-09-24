@@ -24,7 +24,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getCloudEnv } from "../../cod-server/scripts/cloud-env.mjs";
 
@@ -61,16 +61,20 @@ function wranglerApiUrl() {
 
 /** Every URL `astro:env/client` inlined into the browser bundle. */
 function inlinedApiUrls() {
-  const files = execSync(`find ${CLIENT_DIR} -name '*.js'`, { encoding: "utf8" })
-    .split("\n")
-    .filter(Boolean);
   const found = new Set();
-  for (const file of files) {
-    for (const m of readFileSync(file, "utf8").matchAll(
-      /https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/g,
-    )) {
-      found.add(m[0]);
+  try {
+    const entries = readdirSync(CLIENT_DIR, { recursive: true, withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
+      const fullPath = (entry.parentPath ? `${entry.parentPath}/${entry.name}` : `${CLIENT_DIR}/${entry.name}`);
+      for (const m of readFileSync(fullPath, "utf8").matchAll(
+        /https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/g,
+      )) {
+        found.add(m[0]);
+      }
     }
+  } catch {
+    // If client dir doesn't exist or readdir fails
   }
   return found;
 }
