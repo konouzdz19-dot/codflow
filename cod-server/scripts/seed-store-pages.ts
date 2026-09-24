@@ -97,17 +97,26 @@ for (const kind of LEGAL_PAGE_KINDS) {
   }
 }
 
-let ok = 0;
-for (const stmt of statements) {
-  try {
-    run(stmt);
-    ok++;
-  } catch (err) {
-    console.error(`[seed-store-pages] ✗ Failed: ${stmt.slice(0, 90)}...`);
-    console.error("  " + ((err as { stderr?: Buffer })?.stderr?.toString().split("\n").pop() ?? (err as Error).message));
-  }
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+
+const tmpFile = path.join(os.tmpdir(), `seed-legal-pages-${Date.now()}.sql`);
+fs.writeFileSync(tmpFile, statements.join(";\n") + ";\n", "utf8");
+
+try {
+  execSync(
+    `npx wrangler d1 execute ${dbName} ${target} --file "${tmpFile}"`,
+    { cwd: __dirname + "/..", stdio: "inherit" },
+  );
+  console.log(`\n[seed-store-pages] ✓ All ${statements.length} statements executed successfully via file.`);
+} catch (err) {
+  console.error(`[seed-store-pages] ✗ Failed executing SQL file:`, (err as Error).message);
+} finally {
+  try { fs.unlinkSync(tmpFile); } catch {}
 }
 
+const ok = statements.length;
 console.log(`\n[seed-store-pages] ✓ ${ok}/${statements.length} statements executed`);
 console.log(`  store  : ${storeId} (${storeRow.name})`);
 console.log(`  pages  : ${LEGAL_PAGE_KINDS.length} kinds × ${PAGE_LOCALES.length} locales`);

@@ -5,16 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════════════╝
 import { STORE_API_KEY, COD_SERVER_URL as _COD_SERVER_URL } from "astro:env/server";
 const COD_SERVER_URL = _COD_SERVER_URL ?? "http://localhost:8787";
-import { env } from "cloudflare:workers";
 import type { StoreConfig, Commune, Review, StorePagePublic } from "./types";
-
-function fetchBackend(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-  const service = (env as any)?.COD_SERVER;
-  if (service && typeof service.fetch === "function") {
-    return service.fetch(input, init);
-  }
-  return fetch(input, init);
-}
 
 function storeHeaders() {
   return {
@@ -25,7 +16,7 @@ function storeHeaders() {
 
 export async function fetchStoreConfig(): Promise<StoreConfig | null> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/config`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/config`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return null;
@@ -35,7 +26,6 @@ export async function fetchStoreConfig(): Promise<StoreConfig | null> {
     return null;
   }
 }
-
 
 /**
  * Raw fetching functions for Content Loaders
@@ -52,7 +42,7 @@ export async function fetchProductsRaw(params?: {
     if (params?.featured)   qs.set("featured", "true");
     if (params?.limit)      qs.set("limit", String(params.limit));
     const query = qs.toString() ? `?${qs}` : "";
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/products${query}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/products${query}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return [];
@@ -65,7 +55,7 @@ export async function fetchProductsRaw(params?: {
 
 export async function fetchCategoriesRaw(): Promise<any[]> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/categories`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/categories`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return [];
@@ -78,7 +68,7 @@ export async function fetchCategoriesRaw(): Promise<any[]> {
 
 export async function fetchProductByHandle(handle: string): Promise<any | null> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/products/${encodeURIComponent(handle)}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/products/${encodeURIComponent(handle)}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return null;
@@ -96,7 +86,7 @@ export async function fetchProductByHandle(handle: string): Promise<any | null> 
  */
 export async function fetchLandingPageBySlug(slug: string): Promise<any | null> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/landing-pages/${encodeURIComponent(slug)}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/landing-pages/${encodeURIComponent(slug)}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return null;
@@ -115,7 +105,7 @@ export async function fetchLandingPageBySlug(slug: string): Promise<any | null> 
  */
 export async function fetchStorePage(slug: string): Promise<StorePagePublic | null> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/pages/${encodeURIComponent(slug)}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/pages/${encodeURIComponent(slug)}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return null;
@@ -145,7 +135,7 @@ export async function fetchOrderTracking(
 ): Promise<{ pixelId: string | null; event: "Purchase" | "Lead" | null } | null> {
   if (!orderId) return null;
   try {
-    const res = await fetchBackend(
+    const res = await fetch(
       `${COD_SERVER_URL}/store/orders/${encodeURIComponent(orderId)}/tracking`,
       { headers: storeHeaders() },
     );
@@ -161,7 +151,7 @@ export async function fetchOrderTracking(
 
 export async function fetchShippingRates(): Promise<Record<string, { home: number; stopDesk: number }>> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/shipping-rates`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/shipping-rates`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return {};
@@ -174,7 +164,7 @@ export async function fetchShippingRates(): Promise<Record<string, { home: numbe
 
 export async function fetchCommunes(wilayaId: number): Promise<Commune[]> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/communes/${wilayaId}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/communes/${wilayaId}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return [];
@@ -192,7 +182,7 @@ export async function fetchProductReviews(
 ): Promise<{ rows: Review[]; total: number }> {
   try {
     const qs = new URLSearchParams({ productId, limit: String(limit), offset: String(offset) });
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/reviews?${qs}`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/reviews?${qs}`, {
       headers: storeHeaders(),
     });
     if (!res.ok) return { rows: [], total: 0 };
@@ -207,7 +197,7 @@ export async function submitReview(
   body: { orderNumber: string; productId: string; rating: number; title?: string; body: string }
 ): Promise<{ success: true; data: { id: string } } | { success: false; error: string }> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/reviews`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/reviews`, {
       method: "POST",
       headers: storeHeaders(),
       body: JSON.stringify(body),
@@ -225,7 +215,7 @@ export async function placeOrder(
   forwardedHeaders?: Record<string, string>
 ): Promise<{ success: true; data: { orderNumber: string; orderId: string; total: number } } | { success: false; error: string }> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/orders`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/orders`, {
       method: "POST",
       headers: { ...storeHeaders(), ...forwardedHeaders },
       body: JSON.stringify(body),
@@ -251,7 +241,7 @@ export async function sendOtp(
   | { success: false; error: string; code?: string; windowSeconds?: number }
 > {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/otp/send`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/otp/send`, {
       method: "POST",
       headers: storeHeaders(),
       body: JSON.stringify({ phone }),
@@ -285,7 +275,7 @@ export async function verifyOtp(
   | { success: false; error: string; code?: string; attemptsRemaining?: number; terminal?: boolean }
 > {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/otp/verify`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/otp/verify`, {
       method: "POST",
       headers: storeHeaders(),
       body: JSON.stringify({ phone, requestId, code }),
@@ -341,7 +331,7 @@ export async function upsertAbandonedOrder(
   forwardedHeaders?: Record<string, string>
 ): Promise<{ success: true; data: { id: string } } | { success: false; error: string }> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/abandoned`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/abandoned`, {
       method: "POST",
       headers: { ...storeHeaders(), ...forwardedHeaders },
       body: JSON.stringify(body),
@@ -365,12 +355,11 @@ export async function markAbandonedConverted(
   orderNumber: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
-    const res = await fetchBackend(`${COD_SERVER_URL}/store/abandoned/${encodeURIComponent(sessionId)}/convert`, {
+    const res = await fetch(`${COD_SERVER_URL}/store/abandoned/${encodeURIComponent(sessionId)}/convert`, {
       method: "PATCH",
       headers: storeHeaders(),
       body: JSON.stringify({ orderId, orderNumber }),
     });
-
     if (!res.ok) {
       const json = (await res.json().catch(() => ({}))) as any;
       return { success: false, error: json.error ?? "Conversion failed" };
